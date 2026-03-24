@@ -76,9 +76,14 @@ async def async_setup_entry(
     """Set up TruLight BLE light from a config entry."""
     scene_commands = hass.data[DOMAIN][entry.entry_id]["scene_commands"]
 
+    # Extract flat scene lookup from grouped data
+    flat_scenes = scene_commands.get("flat", scene_commands)
+    grouped_scenes = scene_commands.get("groups", {})
+
     entity = TruLightBLELight(
         entry=entry,
-        scene_commands=scene_commands,
+        scene_commands=flat_scenes,
+        grouped_scenes=grouped_scenes,
     )
     async_add_entities([entity])
 
@@ -90,9 +95,7 @@ async def async_setup_entry(
         {
             vol.Required(ATTR_CATEGORY): cv.string,
             vol.Required(ATTR_SCENE_NAME): cv.string,
-            vol.Optional(ATTR_ZONE, default=0): vol.All(
-                vol.Coerce(int), vol.Range(min=0, max=8)
-            ),
+            vol.Optional(ATTR_ZONE, default="0"): vol.Coerce(int),
         },
         "async_set_scene",
     )
@@ -108,19 +111,11 @@ async def async_setup_entry(
     platform.async_register_entity_service(
         SERVICE_SET_ZONE,
         {
-            vol.Required(ATTR_ZONE): vol.All(
-                vol.Coerce(int), vol.Range(min=0, max=8)
-            ),
+            vol.Required(ATTR_ZONE): vol.Coerce(int),
             vol.Optional(ATTR_EFFECT, default="Static"): cv.string,
-            vol.Optional(ATTR_BRIGHTNESS, default=255): vol.All(
-                vol.Coerce(int), vol.Range(min=0, max=255)
-            ),
-            vol.Optional(ATTR_SPEED, default=128): vol.All(
-                vol.Coerce(int), vol.Range(min=0, max=255)
-            ),
-            vol.Optional(ATTR_DIRECTION, default=0): vol.All(
-                vol.Coerce(int), vol.Range(min=0, max=19)
-            ),
+            vol.Optional(ATTR_BRIGHTNESS, default=255): vol.Coerce(int),
+            vol.Optional(ATTR_SPEED, default=128): vol.Coerce(int),
+            vol.Optional(ATTR_DIRECTION, default=0): vol.Coerce(int),
             vol.Optional(ATTR_RGB_COLOR, default=[255, 255, 255]): vol.All(
                 list, vol.Length(min=3, max=3)
             ),
@@ -240,10 +235,12 @@ class TruLightBLELight(LightEntity):
         self,
         entry: ConfigEntry,
         scene_commands: dict,
+        grouped_scenes: dict | None = None,
     ) -> None:
         """Initialize the TruLight BLE light."""
         self._entry = entry
         self._scene_commands = scene_commands
+        self._grouped_scenes = grouped_scenes or {}
 
         self._name = entry.data[CONF_NAME]
         self._command_entity_id = entry.data[CONF_COMMAND_ENTITY]

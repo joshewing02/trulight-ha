@@ -49,7 +49,12 @@ def _load_scene_commands() -> dict:
     path = Path(__file__).parent / "data" / "scene_commands.json"
     try:
         with open(path, encoding="utf-8") as f:
-            return json.load(f)
+            raw = json.load(f)
+        # Support both grouped and flat formats
+        if "flat" in raw:
+            return raw
+        # Legacy flat format — wrap it
+        return {"flat": raw, "groups": {}}
     except (FileNotFoundError, json.JSONDecodeError):
         _LOGGER.error("Failed to load scene_commands.json from %s", path)
-        return {}
+        return {"flat": {}, "groups": {}}

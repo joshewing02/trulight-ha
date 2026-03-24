@@ -8,32 +8,132 @@ set_scene:
   fields:
     category:
       name: Category
-      description: Scene category (e.g., "Christmas 1", "Halloween 1").
+      description: Scene category.
       required: true
       example: "Christmas 1"
       selector:
-        text:
+        select:
+          mode: dropdown
+          options:
+            - label: "--- Holidays ---"
+              value: "_header_holidays"
+            - Christmas 1
+            - Christmas 2
+            - Christmas Advent
+            - Halloween 1
+            - Halloween 2
+            - Halloween 3
+            - Easter
+            - Valentines Day
+            - "St. Patrick's Day"
+            - Thanksgiving
+            - Happy Holidays
+            - Independence Day
+            - USA
+            - Canada Day
+            - Cinco De Mayo
+            - Chinese New Year
+            - Diwali 1
+            - Diwali 2
+            - Diwali 3
+            - "Mother's Day"
+            - Remembrance Day
+            - label: "--- Sports ---"
+              value: "_header_sports"
+            - NFL
+            - NBA
+            - MLB
+            - NHL2
+            - CFL
+            - College Teams
+            - Super Bowl LVI2
+            - Olympics 2022
+            - label: "--- Seasonal ---"
+              value: "_header_seasonal"
+            - Spring Colors
+            - Summer Colors
+            - Autumn Colors
+            - Winter Colors
+            - Rainbow Colors
+            - Downlighting Colors
+            - All White Colors
+            - label: "--- Effects & Patterns ---"
+              value: "_header_effects"
+            - Fireworks 1
+            - Fireworks 2
+            - Fading
+            - IsoFade
+            - ModeExpo
+            - Demo Patterns
+            - Motionless
+            - Amazing Motionless
+            - Amazing-Multi-Brightness
+            - Star Twinkle
+            - Sway
+            - Undualtion
+            - Multi Pulse
+            - Flame
+            - Expanse
+            - Spotlight
+            - Flicker
+            - Extend
+            - label: "--- Pop Culture ---"
+              value: "_header_popculture"
+            - Disney
+            - Paw Patrol
+            - Star Wars 1
+            - Star Wars 2
+            - Taste The Rainbow
+            - label: "--- Architectural ---"
+              value: "_header_architectural"
+            - Architectural BW
+            - Architectural WW
+            - label: "--- Causes ---"
+              value: "_header_causes"
+            - Ukraine Strong
+            - Covid Cause
+            - Pride
+            - Police Service
+            - U.S Military
+            - Truth And Reconciliation
+            - Human Trafficking Awareness
     scene_name:
       name: Scene Name
-      description: Scene name within the category.
+      description: Scene name within the category (check logs for available names).
       required: true
       example: "Candycane--static"
       selector:
         text:
     zone:
       name: Zone
-      description: Zone ID (0=all zones, 1=Top Roofline, 2=Bottom Roofline, etc.)
+      description: "Zone (0=all, 1=Top Roofline, 2=Bottom Roofline, etc.)"
       required: false
       default: 0
       selector:
-        number:
-          min: 0
-          max: 8
-          mode: box
+        select:
+          options:
+            - label: All Zones
+              value: "0"
+            - label: "Zone 1 (Top Roofline)"
+              value: "1"
+            - label: "Zone 2 (Bottom Roofline)"
+              value: "2"
+            - label: Zone 3
+              value: "3"
+            - label: Zone 4
+              value: "4"
+            - label: Zone 5
+              value: "5"
+            - label: Zone 6
+              value: "6"
+            - label: Zone 7
+              value: "7"
+            - label: Zone 8
+              value: "8"
 
 send_raw:
   name: Send Raw Command
-  description: Send a raw hex command to the TruLight controller (CRC computed automatically).
+  description: Send a raw hex command to the TruLight controller (CRC computed automatically by ESP32).
   target:
     entity:
       integration: trulight_ble
@@ -43,7 +143,7 @@ send_raw:
       name: Hex Command
       description: Hex command string without CRC.
       required: true
-      example: "AAF7000080B3FF00FF00000000FF0000000000FF00FF0000..."
+      example: "AAF7000080B3FF00FF0000000000..."
       selector:
         text:
 
@@ -57,20 +157,69 @@ set_zone:
   fields:
     zone:
       name: Zone
-      description: Zone ID (0=all, 1=Top Roofline, 2=Bottom Roofline, etc.)
+      description: Target zone.
       required: true
       selector:
-        number:
-          min: 0
-          max: 8
-          mode: box
+        select:
+          options:
+            - label: All Zones
+              value: "0"
+            - label: "Zone 1 (Top Roofline)"
+              value: "1"
+            - label: "Zone 2 (Bottom Roofline)"
+              value: "2"
+            - label: Zone 3
+              value: "3"
+            - label: Zone 4
+              value: "4"
+            - label: Zone 5
+              value: "5"
+            - label: Zone 6
+              value: "6"
+            - label: Zone 7
+              value: "7"
+            - label: Zone 8
+              value: "8"
     effect:
       name: Effect
-      description: Animation effect name.
+      description: Animation effect.
       required: false
       default: "Static"
       selector:
-        text:
+        select:
+          mode: dropdown
+          options:
+            - Static
+            - Rainbow
+            - Chase Color
+            - Tricolor Chase
+            - Breath
+            - Fade
+            - Meteor
+            - Meteor Smooth
+            - Fire 2012
+            - Fire Flicker
+            - Sparkle
+            - Twinkle
+            - TwinkleFox
+            - Flow
+            - Aurora
+            - Pacifica
+            - Lightning
+            - Fireworks
+            - Heartbeat
+            - Strobe
+            - Rainbow Cycle
+            - Larson Scanner
+            - Sinelon
+            - Juggle
+            - BPM
+            - Dissolve
+            - Running Lights
+            - Wipe
+            - Scan
+            - Bouncing Balls
+            - Popcorn
     brightness:
       name: Brightness
       description: Brightness (0-255).
@@ -93,17 +242,25 @@ set_zone:
           mode: slider
     direction:
       name: Direction
-      description: "Animation direction (0=right, 1=left, 2=center out, 3=outside in, 4=alternate)."
+      description: Animation direction.
       required: false
       default: 0
       selector:
-        number:
-          min: 0
-          max: 19
-          mode: box
+        select:
+          options:
+            - label: Right
+              value: "0"
+            - label: Left
+              value: "1"
+            - label: Center Out
+              value: "2"
+            - label: Outside In
+              value: "3"
+            - label: Alternate
+              value: "4"
     rgb_color:
       name: Color
-      description: RGB color as [R, G, B].
+      description: RGB color.
       required: false
       default: [255, 255, 255]
       selector:
@@ -129,7 +286,7 @@ set_leds:
           mode: box
     leds:
       name: LED Colors
-      description: "List of [R, G, B] colors for each LED. Example: [[255,0,0], [0,255,0], [0,0,255]]"
+      description: "List of [R, G, B] colors. Example: [[255,0,0], [0,255,0], [0,0,255]]"
       required: true
       example: "[[255,0,0], [0,255,0], [0,0,255]]"
       selector:
