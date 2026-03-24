@@ -1,0 +1,38 @@
+set_scene:
+  name: Set Scene
+  description: Apply a pre-built TruLight scene from the scene library.
+  target:
+    entity:
+      integration: trulight_ble
+      domain: light
+  fields:
+    category:
+      name: Category
+      description: The scene category (e.g., "Christmas 1", "Halloween 1", "Rainbow Colors").
+      required: true
+      example: "Christmas 1"
+      selector:
+        text:
+    scene_name:
+      name: Scene Name
+      description: The scene name within the category.
+      required: true
+      example: "1 ON 2 OFF Bri--STATIC"
+      selector:
+        text:
+
+send_raw:
+  name: Send Raw Command
+  description: Send a raw hex command string to the TruLight controller via ESPHome.
+  target:
+    entity:
+      integration: trulight_ble
+      domain: light
+  fields:
+    hex:
+      name: Hex Command
+      description: The hex command string (without CRC - ESP32 computes it).
+      required: true
+      example: "AAF7000080B3FF00FF0000000000FF000000000000FF00FF00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      selector:
+        text:
