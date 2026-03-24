@@ -3,18 +3,28 @@
     "step": {
       "user": {
         "title": "TruLight BLE Controller",
-        "description": "Configure a TruLight BLE LED controller via ESPHome proxy.\n\nYou need an ESP32 running the TruLight BLE proxy ESPHome firmware that exposes a text command entity and power on/off button entities.",
+        "description": "Connect to a TruLight controller via its ESPHome BLE proxy.\n\nYou need an ESP32 running the TruLight BLE proxy firmware.",
         "data": {
-          "name": "Name",
+          "name": "Controller Name",
           "command_entity": "ESPHome Command Entity (text.xxx)",
-          "power_on_entity": "ESPHome Power On Entity (button.xxx)",
-          "power_off_entity": "ESPHome Power Off Entity (button.xxx)"
+          "power_on_entity": "ESPHome Power On Button (button.xxx)",
+          "power_off_entity": "ESPHome Power Off Button (button.xxx)"
         },
         "data_description": {
-          "name": "A friendly name for this TruLight controller (e.g., Backyard, Front)",
+          "name": "A friendly name (e.g., Backyard, Front Yard)",
           "command_entity": "The ESPHome text entity that accepts hex commands",
-          "power_on_entity": "The ESPHome button entity that turns the controller on",
-          "power_off_entity": "The ESPHome button entity that turns the controller off"
+          "power_on_entity": "The ESPHome button that turns the controller on",
+          "power_off_entity": "The ESPHome button that turns the controller off"
+        }
+      },
+      "zones": {
+        "title": "Zone Configuration",
+        "description": "Name your lighting zones to create separate light entities for each. Leave blank to skip.\n\nEach zone can be controlled independently with its own color, effect, and brightness.",
+        "data": {
+          "zone_1_name": "Zone 1 (e.g., Top Roofline)",
+          "zone_2_name": "Zone 2 (e.g., Bottom Roofline)",
+          "zone_3_name": "Zone 3 (e.g., Garage)",
+          "zone_4_name": "Zone 4 (e.g., Patio)"
         }
       }
     },
