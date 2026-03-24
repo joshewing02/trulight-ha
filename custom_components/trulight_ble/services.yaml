@@ -8,22 +8,32 @@ set_scene:
   fields:
     category:
       name: Category
-      description: The scene category (e.g., "Christmas 1", "Halloween 1", "Rainbow Colors").
+      description: Scene category (e.g., "Christmas 1", "Halloween 1").
       required: true
       example: "Christmas 1"
       selector:
         text:
     scene_name:
       name: Scene Name
-      description: The scene name within the category.
+      description: Scene name within the category.
       required: true
-      example: "1 ON 2 OFF Bri--STATIC"
+      example: "Candycane--static"
       selector:
         text:
+    zone:
+      name: Zone
+      description: Zone ID (0=all zones, 1=Top Roofline, 2=Bottom Roofline, etc.)
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 8
+          mode: box
 
 send_raw:
   name: Send Raw Command
-  description: Send a raw hex command string to the TruLight controller via ESPHome.
+  description: Send a raw hex command to the TruLight controller (CRC computed automatically).
   target:
     entity:
       integration: trulight_ble
@@ -31,8 +41,96 @@ send_raw:
   fields:
     hex:
       name: Hex Command
-      description: The hex command string (without CRC - ESP32 computes it).
+      description: Hex command string without CRC.
       required: true
-      example: "AAF7000080B3FF00FF0000000000FF000000000000FF00FF00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      example: "AAF7000080B3FF00FF00000000FF0000000000FF00FF0000..."
       selector:
         text:
+
+set_zone:
+  name: Set Zone
+  description: Control a specific zone independently with its own effect and color.
+  target:
+    entity:
+      integration: trulight_ble
+      domain: light
+  fields:
+    zone:
+      name: Zone
+      description: Zone ID (0=all, 1=Top Roofline, 2=Bottom Roofline, etc.)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 8
+          mode: box
+    effect:
+      name: Effect
+      description: Animation effect name.
+      required: false
+      default: "Static"
+      selector:
+        text:
+    brightness:
+      name: Brightness
+      description: Brightness (0-255).
+      required: false
+      default: 255
+      selector:
+        number:
+          min: 0
+          max: 255
+          mode: slider
+    speed:
+      name: Speed
+      description: Animation speed (0-255).
+      required: false
+      default: 128
+      selector:
+        number:
+          min: 0
+          max: 255
+          mode: slider
+    direction:
+      name: Direction
+      description: "Animation direction (0=right, 1=left, 2=center out, 3=outside in, 4=alternate)."
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 19
+          mode: box
+    rgb_color:
+      name: Color
+      description: RGB color as [R, G, B].
+      required: false
+      default: [255, 255, 255]
+      selector:
+        color_rgb:
+
+set_leds:
+  name: Set Individual LEDs
+  description: Set specific LEDs to individual colors (per-pixel addressing).
+  target:
+    entity:
+      integration: trulight_ble
+      domain: light
+  fields:
+    start_led:
+      name: Start LED
+      description: Starting LED index (0-based).
+      required: true
+      example: 10
+      selector:
+        number:
+          min: 0
+          max: 2000
+          mode: box
+    leds:
+      name: LED Colors
+      description: "List of [R, G, B] colors for each LED. Example: [[255,0,0], [0,255,0], [0,0,255]]"
+      required: true
+      example: "[[255,0,0], [0,255,0], [0,0,255]]"
+      selector:
+        object:
