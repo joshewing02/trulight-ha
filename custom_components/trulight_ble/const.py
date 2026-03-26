@@ -5,6 +5,7 @@ DOMAIN = "trulight_ble"
 CONF_COMMAND_ENTITY = "command_entity"
 CONF_POWER_ON_ENTITY = "power_on_entity"
 CONF_POWER_OFF_ENTITY = "power_off_entity"
+CONF_POWER_STATE_ENTITY = "power_state_entity"
 CONF_ZONES = "zones"
 
 # BLE protocol constants (for reference - ESP32 handles actual BLE)

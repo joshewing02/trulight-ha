@@ -34,6 +34,7 @@ from .const import (
     CONF_COMMAND_ENTITY,
     CONF_POWER_OFF_ENTITY,
     CONF_POWER_ON_ENTITY,
+    CONF_POWER_STATE_ENTITY,
     CONF_ZONES,
     DEFAULT_BRIGHTNESS,
     DEFAULT_DIRECTION,
@@ -212,6 +213,7 @@ class TruLightBLELight(LightEntity):
         self._command_entity_id = entry.data[CONF_COMMAND_ENTITY]
         self._power_on_entity_id = entry.data[CONF_POWER_ON_ENTITY]
         self._power_off_entity_id = entry.data[CONF_POWER_OFF_ENTITY]
+        self._power_state_entity_id = entry.data.get(CONF_POWER_STATE_ENTITY, "")
 
         if zone_name:
             self._attr_unique_id = f"trulight_{entry.entry_id}_zone{zone_id}"
@@ -239,6 +241,11 @@ class TruLightBLELight(LightEntity):
 
     @property
     def is_on(self) -> bool:
+        # Use real state from BLE polling if available
+        if self._power_state_entity_id and self._zone_id == 0:
+            state = self.hass.states.get(self._power_state_entity_id)
+            if state is not None and state.state not in ("unavailable", "unknown"):
+                return state.state == "on"
         return self._is_on
 
     @property
@@ -264,9 +271,15 @@ class TruLightBLELight(LightEntity):
         def _async_state_changed(event):
             self.async_write_ha_state()
 
+        # Track command entity for availability
+        tracked = [self._command_entity_id]
+        # Track power state sensor for real state updates
+        if self._power_state_entity_id:
+            tracked.append(self._power_state_entity_id)
+
         self.async_on_remove(
             async_track_state_change_event(
-                self.hass, [self._command_entity_id], _async_state_changed,
+                self.hass, tracked, _async_state_changed,
             )
         )
 

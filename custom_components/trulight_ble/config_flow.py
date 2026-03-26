@@ -16,6 +16,7 @@ from .const import (
     CONF_COMMAND_ENTITY,
     CONF_POWER_OFF_ENTITY,
     CONF_POWER_ON_ENTITY,
+    CONF_POWER_STATE_ENTITY,
     CONF_ZONES,
     DOMAIN,
 )
@@ -28,6 +29,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_COMMAND_ENTITY): str,
         vol.Required(CONF_POWER_ON_ENTITY): str,
         vol.Required(CONF_POWER_OFF_ENTITY): str,
+        vol.Optional(CONF_POWER_STATE_ENTITY, default=""): str,
     }
 )
 
