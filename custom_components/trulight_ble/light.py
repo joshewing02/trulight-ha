@@ -100,6 +100,10 @@ CURATED_EFFECTS = [
 SERVICE_SET_SCENE = "set_scene"
 SERVICE_SEND_RAW = "send_raw"
 SERVICE_SET_LEDS = "set_leds"
+SERVICE_SET_PARAMS = "set_params"
+
+ATTR_SPEED = "speed"
+ATTR_DENSITY = "density"
 
 ATTR_CATEGORY = "category"
 ATTR_SCENE_NAME = "scene_name"
@@ -171,6 +175,19 @@ async def async_setup_entry(
         "async_set_leds",
     )
 
+    platform.async_register_entity_service(
+        SERVICE_SET_PARAMS,
+        {
+            vol.Optional(ATTR_SPEED): vol.All(
+                vol.Coerce(int), vol.Range(min=0, max=255)
+            ),
+            vol.Optional(ATTR_DENSITY): vol.All(
+                vol.Coerce(int), vol.Range(min=0, max=255)
+            ),
+        },
+        "async_set_params",
+    )
+
 
 def build_scene_hex(
     zone: int = 0, model: int = 0, speed: int = DEFAULT_SPEED,
@@ -226,6 +243,8 @@ class TruLightBLELight(LightEntity):
         self._brightness = 255
         self._rgb_color = (255, 255, 255)
         self._effect = "Static"
+        self._speed = DEFAULT_SPEED  # 0-255, app default 128 (50%)
+        self._density = DEFAULT_WIDTH  # 0-255, app default 179 (70%)
 
     @property
     def supported_color_modes(self) -> set[ColorMode]:
@@ -263,6 +282,15 @@ class TruLightBLELight(LightEntity):
     @property
     def effect_list(self) -> list[str]:
         return CURATED_EFFECTS
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "speed": self._speed,
+            "speed_pct": round(self._speed / 255 * 100),
+            "density": self._density,
+            "density_pct": round(self._density / 255 * 100),
+        }
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -321,6 +349,7 @@ class TruLightBLELight(LightEntity):
             r, g, b = self._rgb_color
             await self._send_hex(build_scene_hex(
                 zone=self._zone_id, model=model_id,
+                speed=self._speed, width=self._density,
                 brightness=self._brightness,
                 r1=r, g1=g, b1=b, r2=r, g2=g, b2=b, r3=r, g3=g, b3=b,
             ))
@@ -340,6 +369,28 @@ class TruLightBLELight(LightEntity):
                 f"AAF6{self._zone_id:02X}00000000000000"
             )
         self._is_on = False
+        self.async_write_ha_state()
+
+    async def async_set_params(
+        self, speed: int | None = None, density: int | None = None,
+    ) -> None:
+        """Set speed and/or density, then re-send current scene."""
+        if speed is not None:
+            self._speed = speed
+        if density is not None:
+            self._density = density
+
+        # Re-send current effect with updated params if lights are on
+        if self._is_on or self.is_on:
+            model_id = EFFECTS.get(self._effect, 0)
+            r, g, b = self._rgb_color
+            await self._send_hex(build_scene_hex(
+                zone=self._zone_id, model=model_id,
+                speed=self._speed, width=self._density,
+                brightness=self._brightness,
+                r1=r, g1=g, b1=b, r2=r, g2=g, b2=b, r3=r, g3=g, b3=b,
+            ))
+
         self.async_write_ha_state()
 
     async def async_set_scene(self, category: str, scene_name: str) -> None:

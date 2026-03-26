@@ -291,3 +291,30 @@ set_leds:
       example: "[[255,0,0], [0,255,0], [0,0,255]]"
       selector:
         object:
+
+set_params:
+  name: Set Speed & Density
+  description: Adjust animation speed and density (pixel spacing) and re-apply current effect.
+  target:
+    entity:
+      integration: trulight_ble
+      domain: light
+  fields:
+    speed:
+      name: Speed
+      description: "Animation speed (0-255). App default: 128 (50%)."
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 255
+          mode: slider
+    density:
+      name: Density
+      description: "Pixel density/width (0-255). Higher = more LEDs lit. App default: 179 (70%)."
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 255
+          mode: slider
