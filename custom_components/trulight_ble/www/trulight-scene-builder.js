@@ -15,7 +15,8 @@ class TruLightSceneBuilder extends HTMLElement {
     this._density = 179;
     this._brightness = 255;
     this._direction = 0;
-    this._lastSentHex = null;
+    this._lastRawHex = null;
+    this._lastSceneHex = null;  // Persists last F7 scene across power toggles
     this._activeSceneName = null;
   }
 
@@ -31,9 +32,20 @@ class TruLightSceneBuilder extends HTMLElement {
     // Track the command entity to detect scene changes
     if (hass && this._commandEntityId) {
       const state = hass.states[this._commandEntityId];
-      if (state && state.state !== 'unknown' && state.state !== 'unavailable' && state.state !== this._lastSentHex) {
-        this._lastSentHex = state.state;
-        this._updateActiveScene();
+      if (state && state.state !== 'unknown' && state.state !== 'unavailable') {
+        const newHex = state.state;
+        // Only update if it's a new F7 scene command
+        if (newHex.startsWith('AAF7') && newHex !== this._lastRawHex) {
+          this._lastRawHex = newHex;
+          this._lastSceneHex = newHex;  // Remember last scene
+          this._updateActiveScene();
+        } else if (!newHex.startsWith('AAF7') && newHex !== this._lastRawHex) {
+          this._lastRawHex = newHex;
+          // Power or other command — keep showing last scene
+          if (this._lastSceneHex) {
+            this._updateActiveScene();
+          }
+        }
       }
     }
   }
@@ -438,10 +450,10 @@ class TruLightSceneBuilder extends HTMLElement {
   _updateActiveScene() {
     const container = this.shadowRoot.getElementById('activeColors');
     const activeScene = this.shadowRoot.getElementById('activeScene');
-    if (!container || !this._lastSentHex) return;
+    if (!container || !this._lastSceneHex) return;
 
     // Parse the F7 hex command to extract colors
-    const parsed = this._parseHex(this._lastSentHex);
+    const parsed = this._parseHex(this._lastSceneHex);
     if (!parsed) {
       activeScene.style.display = 'none';
       return;
@@ -536,7 +548,7 @@ class TruLightSceneBuilder extends HTMLElement {
   }
 
   _loadActiveIntoBuilder() {
-    const parsed = this._parseHex(this._lastSentHex);
+    const parsed = this._parseHex(this._lastSceneHex);
     if (!parsed) return;
 
     // Load colors into builder slots
