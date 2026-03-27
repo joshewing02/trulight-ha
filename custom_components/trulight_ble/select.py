@@ -162,7 +162,7 @@ class TruLightSceneSelect(SelectEntity):
         self.async_write_ha_state()
 
     async def async_select_option(self, option: str) -> None:
-        """Handle scene selection — power on and send the hex command."""
+        """Handle scene selection — stage only, does NOT auto-apply."""
         if option == _PLACEHOLDER or self._current_category is None:
             return
 
@@ -177,8 +177,6 @@ class TruLightSceneSelect(SelectEntity):
 
         self._attr_current_option = option
         self.async_write_ha_state()
-
-        await self._apply_scene(hex_cmd)
 
     async def _apply_scene(self, hex_cmd: str) -> None:
         """Power on and send the hex command, patching zone byte if needed."""

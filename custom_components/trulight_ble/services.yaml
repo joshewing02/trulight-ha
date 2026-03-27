@@ -339,3 +339,7 @@ save_user_scene:
       required: true
       selector:
         text:
+
+apply_scene:
+  name: Apply Staged Scene
+  description: Apply the currently selected zone + category + scene combination. Use this with the APPLY button on the dashboard.

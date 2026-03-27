@@ -28,10 +28,22 @@ CARD_URL = f"/local/community/{DOMAIN}/{CARD_JS}"
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the TruLight BLE component — register frontend card."""
+    """Set up the TruLight BLE component — register frontend card and services."""
     # Copy the card JS to www/community/trulight_ble/ so HA can serve it
     await hass.async_add_executor_job(_install_card, hass.config.path("www"))
     add_extra_js_url(hass, CARD_URL)
+
+    async def _handle_apply_scene(call):
+        """Apply the currently staged scene (zone + category + scene)."""
+        # Find the right entry — use entity_id if provided, otherwise first entry
+        for entry_id, data in hass.data.get(DOMAIN, {}).items():
+            scene_select = data.get("scene_select")
+            if scene_select is not None:
+                await scene_select.async_reapply()
+                return
+
+    hass.services.async_register(DOMAIN, "apply_scene", _handle_apply_scene)
+
     return True
 
 
