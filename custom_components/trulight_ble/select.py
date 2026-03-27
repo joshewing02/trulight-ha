@@ -1,6 +1,7 @@
 """Select platform for TruLight BLE integration.
 
-Provides two linked select entities for browsing built-in scenes:
+Provides three linked select entities for browsing built-in scenes:
+- TruLightZoneSelect: picks which zone to target (All Zones, Top Roofline, etc.)
 - TruLightCategorySelect: picks a scene category (e.g., "Christmas 1", "Halloween")
 - TruLightSceneSelect: picks a scene within the selected category and sends it to the light
 """
@@ -15,11 +16,12 @@ from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_COMMAND_ENTITY, CONF_POWER_ON_ENTITY, DOMAIN
+from .const import CONF_COMMAND_ENTITY, CONF_POWER_ON_ENTITY, CONF_ZONES, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 _PLACEHOLDER = "Select a category"
+_ALL_ZONES = "All Zones"
 
 
 async def async_setup_entry(
@@ -32,14 +34,55 @@ async def async_setup_entry(
     scene_data = data["scene_commands"]
     flat_scenes: dict = scene_data.get("flat", scene_data)
 
+    zone_entity = TruLightZoneSelect(hass, entry)
     category_entity = TruLightCategorySelect(hass, entry, flat_scenes)
     scene_entity = TruLightSceneSelect(hass, entry, flat_scenes)
 
-    # Store references so the category select can update the scene select.
+    # Store references so entities can communicate.
+    data["zone_select"] = zone_entity
     data["category_select"] = category_entity
     data["scene_select"] = scene_entity
 
-    async_add_entities([category_entity, scene_entity])
+    async_add_entities([zone_entity, category_entity, scene_entity])
+
+
+class TruLightZoneSelect(SelectEntity):
+    """Select entity for choosing which zone to target."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:select-group"
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+    ) -> None:
+        self.hass = hass
+        self._entry = entry
+
+        base_name = entry.data[CONF_NAME]
+        self._attr_unique_id = f"trulight_{entry.entry_id}_zone"
+        self._attr_name = f"{base_name} Zone"
+
+        # Build zone options from config
+        options = [_ALL_ZONES]
+        self._zone_map: dict[str, int] = {_ALL_ZONES: 0}
+        for zone in entry.data.get(CONF_ZONES, []):
+            options.append(zone["name"])
+            self._zone_map[zone["name"]] = zone["id"]
+
+        self._attr_options = options
+        self._attr_current_option = _ALL_ZONES
+
+    @property
+    def selected_zone_id(self) -> int:
+        """Return the currently selected zone ID (0 = all)."""
+        return self._zone_map.get(self._attr_current_option, 0)
+
+    async def async_select_option(self, option: str) -> None:
+        """Handle zone selection."""
+        self._attr_current_option = option
+        self.async_write_ha_state()
 
 
 class TruLightCategorySelect(SelectEntity):
@@ -135,6 +178,20 @@ class TruLightSceneSelect(SelectEntity):
         self._attr_current_option = option
         self.async_write_ha_state()
 
+        await self._apply_scene(hex_cmd)
+
+    async def _apply_scene(self, hex_cmd: str) -> None:
+        """Power on and send the hex command, patching zone byte if needed."""
+        # Read the selected zone from the companion zone select
+        zone_select: TruLightZoneSelect | None = (
+            self.hass.data[DOMAIN][self._entry.entry_id].get("zone_select")
+        )
+        zone_id = zone_select.selected_zone_id if zone_select else 0
+
+        # Patch zone byte in F7 command: byte 2 (hex chars 4-5)
+        if zone_id > 0 and hex_cmd.upper().startswith("AAF7"):
+            hex_cmd = hex_cmd[:4] + f"{zone_id:02X}" + hex_cmd[6:]
+
         # Ensure the light is powered on before sending the scene command.
         await self.hass.services.async_call(
             "button",
@@ -149,8 +206,19 @@ class TruLightSceneSelect(SelectEntity):
         )
 
         _LOGGER.debug(
-            "Sent scene '%s' (category '%s') via %s",
-            option,
+            "Sent scene '%s' (category '%s', zone %d) via %s",
+            self._attr_current_option,
             self._current_category,
+            zone_id,
             self._command_entity,
         )
+
+    async def async_reapply(self) -> None:
+        """Re-apply the currently selected scene (for APPLY button service)."""
+        if self._attr_current_option == _PLACEHOLDER or self._current_category is None:
+            return
+        hex_cmd = self._scene_lookup.get(self._current_category, {}).get(
+            self._attr_current_option
+        )
+        if hex_cmd:
+            await self._apply_scene(hex_cmd)
