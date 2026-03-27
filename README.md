@@ -99,11 +99,37 @@ The TruLight appears as a standard HA light entity:
 - **On/Off** — toggle power
 - **Brightness** — 0-100% slider
 - **Color** — RGB color picker
-- **Effect** — dropdown with 163 animation effects
+- **Effect** — dropdown with 37 curated animation effects (163 total available via service)
 
-### Pre-Built Scenes
+### Built-In Scene Browser
 
-Call the `trulight_ble.set_scene` service to apply any of the 1,167 pre-built scenes:
+The integration creates two select entities for browsing scenes directly in the HA UI:
+
+- **Category Select** (`select.trulight_backyard_category`) — Pick from 69 categories
+- **Scene Select** (`select.trulight_backyard_scene`) — Pick a scene within the category, auto-applied to the controller
+
+No automations, input_selects, or scripts needed — it works out of the box.
+
+### Scene Builder Card
+
+A custom Lovelace card is auto-registered for building your own scenes:
+
+```yaml
+type: custom:trulight-scene-builder
+entity: light.trulight_backyard
+```
+
+Features:
+- **16 color palette** — tap circles to set colors, quick-color presets
+- **Effect selector** — 37 animations with speed, density, brightness, and direction controls
+- **Live preview** — sends your creation to the lights instantly
+- **Now Playing** — shows the active scene's colors and effect in real-time
+- **Load into Builder** — import the currently playing scene to edit it
+- **Save scene** — save your creation to the "User Built" category
+
+### Pre-Built Scenes via Service
+
+Call `trulight_ble.set_scene` to apply any of the 1,167 pre-built scenes:
 
 ```yaml
 service: trulight_ble.set_scene
@@ -111,8 +137,30 @@ target:
   entity_id: light.trulight_backyard
 data:
   category: "Christmas 1"
-  scene: "Candycane--static"
+  scene_name: "Candycane--static"
 ```
+
+### Zone Control
+
+Control zones independently (e.g., top roofline vs bottom roofline):
+
+```yaml
+service: trulight_ble.set_zone
+target:
+  entity_id: light.trulight_backyard
+data:
+  zone: 1
+  effect: "Rainbow Cycle"
+  rgb_color: [255, 0, 0]
+  brightness: 200
+  speed: 180
+```
+
+If you configured zones during setup, each zone also gets its own light entity (e.g., `light.trulight_backyard_top_roofline`).
+
+### User-Built Scenes
+
+Scenes saved via the Scene Builder card are stored in `config/trulight_ble/user_scenes.json` and appear under the "User Built" category in the scene browser. They survive integration updates.
 
 ### Holiday Automation Example
 
@@ -134,7 +182,7 @@ automation:
           entity_id: light.trulight_backyard
         data:
           category: "Christmas 1"
-          scene: "Candycane--static"
+          scene_name: "Candycane--static"
 
   - alias: "Christmas Lights Off"
     trigger:
@@ -147,6 +195,23 @@ automation:
       - service: light.turn_off
         target:
           entity_id: light.trulight_backyard
+```
+
+### Dashboard Example
+
+```yaml
+type: vertical-stack
+cards:
+  - type: tile
+    entity: light.trulight_backyard
+    icon: mdi:led-strip-variant
+    color: amber
+  - type: entities
+    entities:
+      - entity: select.trulight_backyard_category
+      - entity: select.trulight_backyard_scene
+  - type: custom:trulight-scene-builder
+    entity: light.trulight_backyard
 ```
 
 ### Available Scene Categories

@@ -1,6 +1,6 @@
 {
   "name": "TruLight BLE",
   "render_readme": true,
-  "domains": ["light"],
+  "domains": ["light", "select"],
   "homeassistant": "2024.1.0"
 }

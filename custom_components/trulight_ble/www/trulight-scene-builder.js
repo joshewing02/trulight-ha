@@ -21,14 +21,33 @@ class TruLightSceneBuilder extends HTMLElement {
   }
 
   setConfig(config) {
+    if (!config.entity) {
+      throw new Error('Please define an entity (light.trulight_xxx)');
+    }
     this._config = config;
-    this._entityId = config.entity || 'light.trulight_backyard_test';
-    this._commandEntityId = config.command_entity || 'text.home_assistant_voice_094737_trulight_backyard_command';
+    this._entityId = config.entity;
+    // Derive related entity IDs from the light entity name
+    // light.trulight_backyard -> select.trulight_backyard_category / _scene
+    // Or allow explicit override via config
+    const base = this._entityId.replace('light.', '');
+    this._commandEntityId = config.command_entity || '';
+    this._categoryEntityId = config.category_entity || `select.${base}_category`;
+    this._sceneEntityId = config.scene_entity || `select.${base}_scene`;
     this._render();
   }
 
   set hass(hass) {
     this._hass = hass;
+
+    // Auto-discover command entity from text.* entities matching our base name
+    if (hass && !this._commandEntityId) {
+      const base = this._entityId.replace('light.', '');
+      const match = Object.keys(hass.states).find(
+        e => e.startsWith('text.') && e.includes(base.replace('trulight_', '')) && e.includes('command')
+      );
+      if (match) this._commandEntityId = match;
+    }
+
     // Track the command entity to detect scene changes
     if (hass && this._commandEntityId) {
       const state = hass.states[this._commandEntityId];
@@ -462,12 +481,13 @@ class TruLightSceneBuilder extends HTMLElement {
     activeScene.style.display = 'block';
     container.innerHTML = '';
 
-    // Show scene name from input_select if available
+    // Show scene name from integration select entities
     const nameEl = this.shadowRoot.getElementById('activeSceneName');
     if (this._hass) {
-      const catState = this._hass.states['input_select.trulight_category'];
-      const sceneState = this._hass.states['input_select.trulight_scene'];
-      if (catState && sceneState && sceneState.state !== 'Select a category first') {
+      const catState = this._hass.states[this._categoryEntityId];
+      const sceneState = this._hass.states[this._sceneEntityId];
+      if (catState && sceneState && catState.state && sceneState.state
+          && sceneState.state !== 'Select a category') {
         nameEl.textContent = `${catState.state} — ${sceneState.state}`;
       } else {
         nameEl.textContent = 'Custom';
@@ -808,12 +828,6 @@ class TruLightSceneBuilder extends HTMLElement {
     };
     localStorage.setItem('trulight_user_scenes', JSON.stringify(saved));
 
-    // Also fire an event HA can listen to
-    this._hass.callService('input_select', 'set_options', {
-      entity_id: 'input_select.trulight_scene',
-      options: Object.keys(saved)
-    }).catch(() => {});
-
     const btn = this.shadowRoot.getElementById('saveBtn');
     btn.textContent = '✅ Saved locally!';
     setTimeout(() => { btn.textContent = '💾 SAVE SCENE'; }, 2000);
@@ -902,8 +916,12 @@ class TruLightSceneBuilder extends HTMLElement {
     return 8;
   }
 
-  static getStubConfig() {
-    return { entity: 'light.trulight_backyard_test' };
+  static getStubConfig(hass) {
+    // Find the first TruLight light entity
+    const entity = Object.keys(hass.states).find(
+      e => e.startsWith('light.trulight_')
+    );
+    return { entity: entity || '' };
   }
 }
 

@@ -8,13 +8,15 @@
           "name": "Controller Name",
           "command_entity": "ESPHome Command Entity (text.xxx)",
           "power_on_entity": "ESPHome Power On Button (button.xxx)",
-          "power_off_entity": "ESPHome Power Off Button (button.xxx)"
+          "power_off_entity": "ESPHome Power Off Button (button.xxx)",
+          "power_state_entity": "Power State Sensor (optional, binary_sensor.xxx)"
         },
         "data_description": {
           "name": "A friendly name (e.g., Backyard, Front Yard)",
           "command_entity": "The ESPHome text entity that accepts hex commands",
           "power_on_entity": "The ESPHome button that turns the controller on",
-          "power_off_entity": "The ESPHome button that turns the controller off"
+          "power_off_entity": "The ESPHome button that turns the controller off",
+          "power_state_entity": "Optional: ESPHome binary sensor that tracks real power state via BLE polling"
         }
       },
       "zones": {

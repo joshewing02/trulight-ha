@@ -29,6 +29,11 @@ esphome:
 
 esp32:
   board: esp32-s3-devkitc-1
+  # Board variants:
+  #   Waveshare ESP32-S3 Mini:  esp32-s3-devkitc-1
+  #   ESP32-S3 DevKitC:         esp32-s3-devkitc-1
+  #   ESP32 DevKit v1 (no S3):  esp32dev  (BLE 4.2, shorter range)
+  #   Voice PE (ESP32-S3-BOX):  esp32-s3-devkitc-1
   framework:
     type: arduino
 
@@ -94,19 +99,34 @@ text:
             characteristic_uuid: 0000ae01-0000-1000-8000-00805f9b34fb
             value: !lambda |-
               std::string hex = x;
+              // Validate: must start with "AA", even length, only hex chars
+              if (hex.length() < 4 || hex.length() % 2 != 0) {
+                ESP_LOGW("trulight", "Invalid hex: length %d (need even, min 4)", hex.length());
+                return {};
+              }
+              if (hex[0] != 'A' || hex[1] != 'A') {
+                ESP_LOGW("trulight", "Invalid hex: must start with AA");
+                return {};
+              }
               std::vector<uint8_t> data;
               for (size_t i = 0; i + 1 < hex.length(); i += 2) {
                 uint8_t b = 0;
+                bool valid = true;
                 for (int j = 0; j < 2; j++) {
                   char c = hex[i + j];
                   b <<= 4;
                   if (c >= '0' && c <= '9') b |= (c - '0');
                   else if (c >= 'a' && c <= 'f') b |= (c - 'a' + 10);
                   else if (c >= 'A' && c <= 'F') b |= (c - 'A' + 10);
+                  else { valid = false; break; }
+                }
+                if (!valid) {
+                  ESP_LOGW("trulight", "Invalid hex char at position %d", i);
+                  return {};
                 }
                 data.push_back(b);
               }
-              // CRC8-MAXIM
+              // CRC8-MAXIM (Dallas/Maxim 1-Wire polynomial 0x8C)
               uint8_t crc = 0;
               for (auto byte : data) {
                 crc ^= byte;

@@ -103,6 +103,7 @@ SERVICE_SEND_RAW = "send_raw"
 SERVICE_SET_LEDS = "set_leds"
 SERVICE_SET_PARAMS = "set_params"
 SERVICE_SAVE_USER_SCENE = "save_user_scene"
+SERVICE_SET_ZONE = "set_zone"
 
 ATTR_SPEED = "speed"
 ATTR_DENSITY = "density"
@@ -114,6 +115,8 @@ ATTR_ZONE = "zone"
 ATTR_START_LED = "start_led"
 ATTR_LEDS = "leds"
 ATTR_HEX = "hex"
+ATTR_EFFECT_NAME = "effect"
+ATTR_BRIGHTNESS_VAL = "brightness"
 
 
 async def async_setup_entry(
@@ -198,6 +201,29 @@ async def async_setup_entry(
             ),
         },
         "async_set_params",
+    )
+
+    platform.async_register_entity_service(
+        SERVICE_SET_ZONE,
+        {
+            vol.Required(ATTR_ZONE): vol.All(
+                vol.Coerce(int), vol.Range(min=0, max=8)
+            ),
+            vol.Optional(ATTR_EFFECT_NAME, default="Static"): cv.string,
+            vol.Optional(ATTR_BRIGHTNESS_VAL, default=255): vol.All(
+                vol.Coerce(int), vol.Range(min=0, max=255)
+            ),
+            vol.Optional(ATTR_SPEED, default=DEFAULT_SPEED): vol.All(
+                vol.Coerce(int), vol.Range(min=0, max=255)
+            ),
+            vol.Optional("direction", default=0): vol.All(
+                vol.Coerce(int), vol.Range(min=0, max=4)
+            ),
+            vol.Optional("rgb_color", default=[255, 255, 255]): vol.All(
+                list, vol.Length(min=3, max=3),
+            ),
+        },
+        "async_set_zone",
     )
 
 
@@ -385,29 +411,36 @@ class TruLightBLELight(LightEntity):
 
     async def async_save_user_scene(self, name: str, hex: str) -> None:
         """Save a user-built scene to the User Built category."""
-        import os
-        user_scenes_path = os.path.join(
-            os.path.dirname(__file__), "data", "user_scenes.json"
+        await self.hass.async_add_executor_job(
+            self._save_user_scene_sync, name, hex
         )
+
+    def _save_user_scene_sync(self, name: str, hex_cmd: str) -> None:
+        """Save user scene (blocking I/O, called via executor)."""
+        from pathlib import Path
+
+        user_dir = Path(self.hass.config.path()) / DOMAIN
+        user_dir.mkdir(parents=True, exist_ok=True)
+        user_scenes_path = user_dir / "user_scenes.json"
 
         # Load existing user scenes
         try:
-            with open(user_scenes_path, "r") as f:
+            with open(user_scenes_path, encoding="utf-8") as f:
                 user_scenes = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             user_scenes = []
 
         # Add new scene
-        user_scenes.append({"name": name, "hex": hex})
+        user_scenes.append({"name": name, "hex": hex_cmd})
 
-        # Save
-        with open(user_scenes_path, "w") as f:
+        # Save to HA config dir (survives integration updates)
+        with open(user_scenes_path, "w", encoding="utf-8") as f:
             json.dump(user_scenes, f, indent=2)
 
         # Add to the flat scene commands in memory
         if "User Built" not in self._scene_commands:
             self._scene_commands["User Built"] = []
-        self._scene_commands["User Built"].append({"name": name, "hex": hex})
+        self._scene_commands["User Built"].append({"name": name, "hex": hex_cmd})
 
         _LOGGER.info("Saved user scene '%s' (%d total user scenes)", name, len(user_scenes))
 
@@ -431,6 +464,38 @@ class TruLightBLELight(LightEntity):
                 r1=r, g1=g, b1=b, r2=r, g2=g, b2=b, r3=r, g3=g, b3=b,
             ))
 
+        self.async_write_ha_state()
+
+    async def async_set_zone(
+        self,
+        zone: int,
+        effect: str = "Static",
+        brightness: int = 255,
+        speed: int = DEFAULT_SPEED,
+        direction: int = 0,
+        rgb_color: list[int] | None = None,
+    ) -> None:
+        """Control a specific zone with its own effect and color."""
+        if rgb_color is None:
+            rgb_color = [255, 255, 255]
+
+        model_id = EFFECTS.get(effect)
+        if model_id is None:
+            _LOGGER.error("Unknown effect '%s'", effect)
+            return
+
+        r, g, b = rgb_color[0], rgb_color[1], rgb_color[2]
+        hex_cmd = build_scene_hex(
+            zone=zone, model=model_id, speed=speed,
+            width=self._density, brightness=brightness,
+            direction=direction,
+            r1=r, g1=g, b1=b, r2=r, g2=g, b2=b, r3=r, g3=g, b3=b,
+        )
+
+        if not self._is_on:
+            await self.async_turn_on()
+
+        await self._send_hex(hex_cmd)
         self.async_write_ha_state()
 
     async def async_set_scene(self, category: str, scene_name: str) -> None:
