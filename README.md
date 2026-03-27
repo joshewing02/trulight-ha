@@ -1,4 +1,10 @@
+<p align="center">
+  <img src="logo.png" alt="TruLight BLE" width="300">
+</p>
+
 # TruLight BLE - Home Assistant Integration
+
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 
 Control TruLight Pro LED controllers from Home Assistant via Bluetooth Low Energy.
 
