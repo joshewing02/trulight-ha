@@ -15,16 +15,27 @@ class TruLightSceneBuilder extends HTMLElement {
     this._density = 179;
     this._brightness = 255;
     this._direction = 0;
+    this._lastSentHex = null;
+    this._activeSceneName = null;
   }
 
   setConfig(config) {
     this._config = config;
     this._entityId = config.entity || 'light.trulight_backyard_test';
+    this._commandEntityId = config.command_entity || 'text.home_assistant_voice_094737_trulight_backyard_command';
     this._render();
   }
 
   set hass(hass) {
     this._hass = hass;
+    // Track the command entity to detect scene changes
+    if (hass && this._commandEntityId) {
+      const state = hass.states[this._commandEntityId];
+      if (state && state.state !== 'unknown' && state.state !== 'unavailable' && state.state !== this._lastSentHex) {
+        this._lastSentHex = state.state;
+        this._updateActiveScene();
+      }
+    }
   }
 
   _render() {
@@ -61,6 +72,60 @@ class TruLightSceneBuilder extends HTMLElement {
           gap: 8px;
         }
         .title ha-icon { --mdc-icon-size: 24px; }
+
+        /* Active scene */
+        .active-scene {
+          background: var(--secondary-background-color, #f5f5f5);
+          border-radius: 12px;
+          padding: 12px;
+          margin-bottom: 12px;
+        }
+        .active-label {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--primary-text-color);
+        }
+        .edit-active-btn {
+          padding: 4px 12px;
+          border-radius: 6px;
+          border: 1px solid var(--primary-color, #03a9f4);
+          background: transparent;
+          color: var(--primary-color, #03a9f4);
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .edit-active-btn:hover {
+          background: var(--primary-color, #03a9f4);
+          color: white;
+        }
+        .active-colors {
+          display: flex;
+          gap: 4px;
+          flex-wrap: wrap;
+          justify-content: center;
+        }
+        .active-dot {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          border: 2px solid rgba(0,0,0,0.1);
+        }
+        .divider {
+          height: 1px;
+          background: var(--divider-color, #ddd);
+          margin: 12px 0;
+        }
+        .active-info {
+          font-size: 11px;
+          color: var(--secondary-text-color);
+          text-align: center;
+          margin-top: 4px;
+        }
 
         /* Color circles */
         .color-row {
@@ -278,6 +343,17 @@ class TruLightSceneBuilder extends HTMLElement {
           Scene Builder
         </div>
 
+        <!-- Active Scene -->
+        <div class="active-scene" id="activeScene">
+          <div class="active-label">
+            <span>▶ Now Playing</span>
+            <button class="edit-active-btn" id="editActiveBtn">Load into Builder</button>
+          </div>
+          <div class="active-colors" id="activeColors"></div>
+        </div>
+
+        <div class="divider"></div>
+
         <!-- 16 Color Circles -->
         <div class="color-row" id="colorRow"></div>
 
@@ -356,6 +432,146 @@ class TruLightSceneBuilder extends HTMLElement {
     this._setupQuickColors();
     this._setupControls();
     this._setupPreview();
+    this._setupActiveScene();
+  }
+
+  _updateActiveScene() {
+    const container = this.shadowRoot.getElementById('activeColors');
+    const activeScene = this.shadowRoot.getElementById('activeScene');
+    if (!container || !this._lastSentHex) return;
+
+    // Parse the F7 hex command to extract colors
+    const parsed = this._parseHex(this._lastSentHex);
+    if (!parsed) {
+      activeScene.style.display = 'none';
+      return;
+    }
+
+    activeScene.style.display = 'block';
+    container.innerHTML = '';
+
+    // Show the palette colors
+    const colorCount = parsed.colorCount || parsed.colors.length;
+    for (let i = 0; i < Math.min(colorCount, 16); i++) {
+      const c = parsed.colors[i];
+      const dot = document.createElement('div');
+      dot.className = 'active-dot';
+      if (c[0] === 0 && c[1] === 0 && c[2] === 0) {
+        dot.style.background = '#1a1a1a';
+        dot.style.border = '2px solid #555';
+      } else {
+        dot.style.background = `rgb(${c[0]},${c[1]},${c[2]})`;
+      }
+      container.appendChild(dot);
+    }
+
+    // Show effect info
+    let info = container.parentElement.querySelector('.active-info');
+    if (!info) {
+      info = document.createElement('div');
+      info.className = 'active-info';
+      container.parentElement.appendChild(info);
+    }
+    const effectName = this._getEffectName(parsed.model);
+    info.textContent = `${effectName} · ${colorCount} colors · Speed ${Math.round(parsed.speed/255*100)}% · Density ${Math.round(parsed.density/255*100)}%`;
+  }
+
+  _parseHex(hex) {
+    if (!hex || hex.length < 48 || !hex.startsWith('AAF7')) return null;
+    try {
+      const model = parseInt(hex.substr(6, 2), 16);
+      const speed = parseInt(hex.substr(8, 2), 16);
+      const density = parseInt(hex.substr(10, 2), 16);
+      const brightness = parseInt(hex.substr(12, 2), 16);
+      const direction = parseInt(hex.substr(14, 2), 16);
+
+      // Palette starts at byte 24 (hex offset 48)
+      const colors = [];
+      for (let i = 0; i < 16; i++) {
+        const off = 48 + i * 10; // 5 bytes = 10 hex chars
+        if (off + 6 <= hex.length) {
+          const r = parseInt(hex.substr(off, 2), 16);
+          const g = parseInt(hex.substr(off + 2, 2), 16);
+          const b = parseInt(hex.substr(off + 4, 2), 16);
+          colors.push([r, g, b]);
+        }
+      }
+
+      const colorCount = parseInt(hex.substr(hex.length - 2, 2), 16);
+
+      return { model, speed, density, brightness, direction, colors, colorCount };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  _getEffectName(modelId) {
+    const map = {
+      0: 'Static', 1: 'Breathing', 2: 'Color Wipe', 7: 'BPM', 10: 'Rainbow',
+      11: 'Rainbow Cycle', 12: 'Scan', 13: 'Dual Scan', 14: 'Fade',
+      15: 'Theater Chase', 17: 'Running Lights', 18: 'Twinkle',
+      23: 'Dissolve', 28: 'Fairy', 33: 'Fire 2012', 34: 'Fire Flicker',
+      37: 'Fireworks', 40: 'Flow', 45: 'Juggle', 46: 'Lake', 47: 'Larson Scanner',
+      49: 'Lightning', 51: 'Meteor', 52: 'Meteor Smooth', 59: 'Ocean',
+      61: 'Pacifica', 67: 'Popcorn', 80: 'Sinelon', 83: 'Solid Glitter',
+      84: 'Sparkle', 90: 'Strobe', 95: 'Sweep', 97: 'TwinkleFox', 108: 'Waves'
+    };
+    return map[modelId] || `Effect ${modelId}`;
+  }
+
+  _loadActiveIntoBuilder() {
+    const parsed = this._parseHex(this._lastSentHex);
+    if (!parsed) return;
+
+    // Load colors into builder slots
+    this._colors = Array(16).fill(null);
+    const count = Math.min(parsed.colorCount || parsed.colors.length, 16);
+    for (let i = 0; i < count; i++) {
+      const [r, g, b] = parsed.colors[i];
+      this._colors[i] = '#' + r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0');
+    }
+
+    // Load settings
+    this._speed = parsed.speed;
+    this._density = parsed.density;
+    this._brightness = parsed.brightness;
+    this._direction = parsed.direction;
+
+    // Find effect name
+    const effectName = this._getEffectName(parsed.model);
+
+    // Update UI
+    this._updateSlotVisuals();
+    this.shadowRoot.getElementById('speedSlider').value = this._speed;
+    this.shadowRoot.getElementById('speedValue').textContent = Math.round(this._speed / 255 * 100) + '%';
+    this.shadowRoot.getElementById('densitySlider').value = this._density;
+    this.shadowRoot.getElementById('densityValue').textContent = Math.round(this._density / 255 * 100) + '%';
+    this.shadowRoot.getElementById('brightnessSlider').value = this._brightness;
+    this.shadowRoot.getElementById('brightnessValue').textContent = Math.round(this._brightness / 255 * 100) + '%';
+    this.shadowRoot.getElementById('directionSelect').value = this._direction;
+
+    // Set effect if it exists in the dropdown
+    const effectSelect = this.shadowRoot.getElementById('effectSelect');
+    for (let opt of effectSelect.options) {
+      if (opt.value === effectName) {
+        effectSelect.value = effectName;
+        this._effect = effectName;
+        break;
+      }
+    }
+
+    // Flash the button
+    const btn = this.shadowRoot.getElementById('editActiveBtn');
+    btn.textContent = '✅ Loaded!';
+    setTimeout(() => { btn.textContent = 'Load into Builder'; }, 1500);
+  }
+
+  _setupActiveScene() {
+    this.shadowRoot.getElementById('editActiveBtn').addEventListener('click', () => {
+      this._loadActiveIntoBuilder();
+    });
+    // Hide active scene initially until we get data
+    this.shadowRoot.getElementById('activeScene').style.display = 'none';
   }
 
   _setupColorSlots() {
