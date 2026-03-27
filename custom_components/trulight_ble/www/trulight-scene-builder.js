@@ -221,7 +221,7 @@ class TruLightSceneBuilder extends HTMLElement {
 
         /* Clear button */
         .clear-btn {
-          width: 100%;
+          flex: 1;
           padding: 10px;
           border-radius: 8px;
           border: 1px solid var(--divider-color, #ddd);
@@ -230,6 +230,45 @@ class TruLightSceneBuilder extends HTMLElement {
           font-size: 13px;
           cursor: pointer;
           margin-top: 8px;
+        }
+
+        /* Save button */
+        .save-btn {
+          flex: 1;
+          padding: 10px;
+          border-radius: 8px;
+          border: none;
+          background: #4CAF50;
+          color: white;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          margin-top: 8px;
+          transition: filter 0.2s;
+        }
+        .save-btn:hover { filter: brightness(1.1); }
+
+        /* Save dialog */
+        .save-dialog {
+          margin-top: 12px;
+          padding: 16px;
+          background: var(--secondary-background-color, #f5f5f5);
+          border-radius: 12px;
+          border: 1px solid var(--divider-color, #ddd);
+        }
+        .save-dialog label {
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--primary-text-color);
+        }
+        .save-dialog input[type="text"] {
+          width: 100%;
+          padding: 8px 12px;
+          border-radius: 8px;
+          border: 1px solid var(--divider-color, #ddd);
+          font-size: 14px;
+          margin-top: 4px;
+          box-sizing: border-box;
         }
       </style>
 
@@ -290,11 +329,26 @@ class TruLightSceneBuilder extends HTMLElement {
           </div>
         </div>
 
-        <!-- Preview Button -->
+        <!-- Preview & Save Buttons -->
         <button class="preview-btn" id="previewBtn">
           ▶ PREVIEW ON LIGHTS
         </button>
-        <button class="clear-btn" id="clearAllBtn">Clear All Colors</button>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button class="save-btn" id="saveBtn">💾 SAVE SCENE</button>
+          <button class="clear-btn" id="clearAllBtn" style="margin-top:0;">Clear All Colors</button>
+        </div>
+
+        <!-- Save dialog -->
+        <div id="saveDialog" class="save-dialog" style="display:none;">
+          <div class="save-dialog-content">
+            <label>Scene Name:</label>
+            <input type="text" id="sceneNameInput" placeholder="My Custom Scene">
+            <div style="display:flex; gap:8px; margin-top:8px;">
+              <button class="picker-btn active" id="saveConfirmBtn">Save</button>
+              <button class="picker-btn" id="saveCancelBtn">Cancel</button>
+            </div>
+          </div>
+        </div>
       </div>
     `;
 
@@ -442,6 +496,72 @@ class TruLightSceneBuilder extends HTMLElement {
     this.shadowRoot.getElementById('previewBtn').addEventListener('click', () => {
       this._sendScene();
     });
+
+    // Save scene functionality
+    this.shadowRoot.getElementById('saveBtn').addEventListener('click', () => {
+      const dialog = this.shadowRoot.getElementById('saveDialog');
+      dialog.style.display = dialog.style.display === 'none' ? 'block' : 'none';
+      this.shadowRoot.getElementById('sceneNameInput').focus();
+    });
+
+    this.shadowRoot.getElementById('saveCancelBtn').addEventListener('click', () => {
+      this.shadowRoot.getElementById('saveDialog').style.display = 'none';
+    });
+
+    this.shadowRoot.getElementById('saveConfirmBtn').addEventListener('click', () => {
+      const name = this.shadowRoot.getElementById('sceneNameInput').value.trim();
+      if (!name) return;
+      this._saveScene(name);
+      this.shadowRoot.getElementById('saveDialog').style.display = 'none';
+      this.shadowRoot.getElementById('sceneNameInput').value = '';
+    });
+  }
+
+  _saveScene(name) {
+    if (!this._hass) return;
+
+    const hex = this._buildHex();
+
+    // Call HA service to save the scene
+    this._hass.callService('trulight_ble', 'save_user_scene', {
+      entity_id: this._entityId,
+      name: name,
+      hex: hex
+    }).then(() => {
+      // Show confirmation
+      const btn = this.shadowRoot.getElementById('saveBtn');
+      btn.textContent = '✅ Saved!';
+      setTimeout(() => { btn.textContent = '💾 SAVE SCENE'; }, 2000);
+    }).catch(() => {
+      // Fallback: save via input_text if service doesn't exist yet
+      this._saveSceneFallback(name, hex);
+    });
+  }
+
+  _saveSceneFallback(name, hex) {
+    // Store in browser localStorage as fallback
+    const saved = JSON.parse(localStorage.getItem('trulight_user_scenes') || '{}');
+    saved[name] = {
+      hex: hex,
+      colors: [...this._colors],
+      effect: this._effect,
+      speed: this._speed,
+      density: this._density,
+      brightness: this._brightness,
+      direction: this._direction,
+      created: new Date().toISOString()
+    };
+    localStorage.setItem('trulight_user_scenes', JSON.stringify(saved));
+
+    // Also fire an event HA can listen to
+    this._hass.callService('input_select', 'set_options', {
+      entity_id: 'input_select.trulight_scene',
+      options: Object.keys(saved)
+    }).catch(() => {});
+
+    const btn = this.shadowRoot.getElementById('saveBtn');
+    btn.textContent = '✅ Saved locally!';
+    setTimeout(() => { btn.textContent = '💾 SAVE SCENE'; }, 2000);
   }
 
   _hexToRGB(hex) {
@@ -467,9 +587,7 @@ class TruLightSceneBuilder extends HTMLElement {
     return map[name] || 0;
   }
 
-  _sendScene() {
-    if (!this._hass) return;
-
+  _buildHex() {
     // Collect active colors
     const activeColors = [];
     for (let i = 0; i < 16; i++) {
@@ -479,12 +597,11 @@ class TruLightSceneBuilder extends HTMLElement {
     }
 
     if (activeColors.length === 0) {
-      activeColors.push([255, 255, 255]); // default white
+      activeColors.push([255, 255, 255]);
     }
 
     const model = this._getEffectId(this._effect);
 
-    // Build F7 command
     let hex = 'AAF7';
     hex += '00'; // zone = all
     hex += model.toString(16).padStart(2, '0').toUpperCase();
@@ -499,11 +616,10 @@ class TruLightSceneBuilder extends HTMLElement {
       hex += c[0].toString(16).padStart(2, '0').toUpperCase();
       hex += c[1].toString(16).padStart(2, '0').toUpperCase();
       hex += c[2].toString(16).padStart(2, '0').toUpperCase();
-      hex += '0000'; // CW, W
+      hex += '0000';
     }
 
-    // PanelId = 0xFF (inline palette)
-    hex += 'FF';
+    hex += 'FF'; // PanelId = inline palette
 
     // 16 palette colors (wrapping)
     for (let i = 0; i < 16; i++) {
@@ -511,13 +627,16 @@ class TruLightSceneBuilder extends HTMLElement {
       hex += c[0].toString(16).padStart(2, '0').toUpperCase();
       hex += c[1].toString(16).padStart(2, '0').toUpperCase();
       hex += c[2].toString(16).padStart(2, '0').toUpperCase();
-      hex += '0000'; // CW, W
+      hex += '0000';
     }
 
-    // Color count
     hex += activeColors.length.toString(16).padStart(2, '0').toUpperCase();
+    return hex;
+  }
 
-    // Send via the integration's send_raw service
+  _sendScene() {
+    if (!this._hass) return;
+    const hex = this._buildHex();
     this._hass.callService('trulight_ble', 'send_raw', {
       entity_id: this._entityId,
       hex: hex

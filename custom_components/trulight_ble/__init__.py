@@ -45,16 +45,28 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 def _load_scene_commands() -> dict:
-    """Load scene commands from the bundled JSON file."""
+    """Load scene commands from the bundled JSON file + user scenes."""
     path = Path(__file__).parent / "data" / "scene_commands.json"
+    user_path = Path(__file__).parent / "data" / "user_scenes.json"
     try:
         with open(path, encoding="utf-8") as f:
             raw = json.load(f)
-        # Support both grouped and flat formats
         if "flat" in raw:
-            return raw
-        # Legacy flat format — wrap it
-        return {"flat": raw, "groups": {}}
+            result = raw
+        else:
+            result = {"flat": raw, "groups": {}}
     except (FileNotFoundError, json.JSONDecodeError):
         _LOGGER.error("Failed to load scene_commands.json from %s", path)
-        return {"flat": {}, "groups": {}}
+        result = {"flat": {}, "groups": {}}
+
+    # Load user scenes
+    try:
+        with open(user_path, encoding="utf-8") as f:
+            user_scenes = json.load(f)
+        if user_scenes:
+            result["flat"]["User Built"] = user_scenes
+            _LOGGER.info("Loaded %d user-built scenes", len(user_scenes))
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
+    return result

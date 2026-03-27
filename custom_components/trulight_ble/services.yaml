@@ -318,3 +318,24 @@ set_params:
           min: 0
           max: 255
           mode: slider
+
+save_user_scene:
+  name: Save User Scene
+  description: Save a custom scene to the User Built category.
+  target:
+    entity:
+      integration: trulight_ble
+      domain: light
+  fields:
+    name:
+      name: Scene Name
+      description: Name for the saved scene.
+      required: true
+      selector:
+        text:
+    hex:
+      name: Hex Command
+      description: The scene hex command to save.
+      required: true
+      selector:
+        text:

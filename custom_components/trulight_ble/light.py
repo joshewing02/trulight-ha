@@ -7,6 +7,7 @@ Creates a main light entity plus separate entities for each configured zone
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from typing import Any
 
@@ -101,9 +102,11 @@ SERVICE_SET_SCENE = "set_scene"
 SERVICE_SEND_RAW = "send_raw"
 SERVICE_SET_LEDS = "set_leds"
 SERVICE_SET_PARAMS = "set_params"
+SERVICE_SAVE_USER_SCENE = "save_user_scene"
 
 ATTR_SPEED = "speed"
 ATTR_DENSITY = "density"
+ATTR_SCENE_HEX = "hex"
 
 ATTR_CATEGORY = "category"
 ATTR_SCENE_NAME = "scene_name"
@@ -173,6 +176,15 @@ async def async_setup_entry(
             vol.Required(ATTR_LEDS): vol.All(list),
         },
         "async_set_leds",
+    )
+
+    platform.async_register_entity_service(
+        SERVICE_SAVE_USER_SCENE,
+        {
+            vol.Required("name"): cv.string,
+            vol.Required(ATTR_SCENE_HEX): cv.string,
+        },
+        "async_save_user_scene",
     )
 
     platform.async_register_entity_service(
@@ -370,6 +382,34 @@ class TruLightBLELight(LightEntity):
             )
         self._is_on = False
         self.async_write_ha_state()
+
+    async def async_save_user_scene(self, name: str, hex: str) -> None:
+        """Save a user-built scene to the User Built category."""
+        import os
+        user_scenes_path = os.path.join(
+            os.path.dirname(__file__), "data", "user_scenes.json"
+        )
+
+        # Load existing user scenes
+        try:
+            with open(user_scenes_path, "r") as f:
+                user_scenes = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            user_scenes = []
+
+        # Add new scene
+        user_scenes.append({"name": name, "hex": hex})
+
+        # Save
+        with open(user_scenes_path, "w") as f:
+            json.dump(user_scenes, f, indent=2)
+
+        # Add to the flat scene commands in memory
+        if "User Built" not in self._scene_commands:
+            self._scene_commands["User Built"] = []
+        self._scene_commands["User Built"].append({"name": name, "hex": hex})
+
+        _LOGGER.info("Saved user scene '%s' (%d total user scenes)", name, len(user_scenes))
 
     async def async_set_params(
         self, speed: int | None = None, density: int | None = None,
