@@ -48,6 +48,19 @@ class TruLightSceneBuilder extends HTMLElement {
       if (match) this._commandEntityId = match;
     }
 
+    // Check light entity state — hide active scene when off, restore when on
+    if (hass && this._entityId) {
+      const lightState = hass.states[this._entityId];
+      const isOff = lightState && lightState.state === 'off';
+      const activeScene = this.shadowRoot?.getElementById('activeScene');
+
+      if (isOff) {
+        if (activeScene) activeScene.style.display = 'none';
+      } else if (this._lastSceneHex && activeScene && activeScene.style.display === 'none') {
+        this._updateActiveScene();
+      }
+    }
+
     // Track the command entity to detect scene changes
     if (hass && this._commandEntityId) {
       const state = hass.states[this._commandEntityId];

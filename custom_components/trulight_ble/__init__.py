@@ -21,7 +21,7 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.LIGHT, Platform.SELECT]
+PLATFORMS = [Platform.BUTTON, Platform.LIGHT, Platform.SELECT]
 
 CARD_JS = "trulight-scene-builder.js"
 CARD_URL = f"/local/community/{DOMAIN}/{CARD_JS}"
