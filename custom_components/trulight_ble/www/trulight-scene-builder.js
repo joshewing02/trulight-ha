@@ -346,7 +346,7 @@ class TruLightSceneBuilder extends HTMLElement {
         <!-- Active Scene -->
         <div class="active-scene" id="activeScene">
           <div class="active-label">
-            <span>▶ Now Playing</span>
+            <span>▶ Now Playing: <span id="activeSceneName" style="color:var(--primary-color, #03a9f4);">—</span></span>
             <button class="edit-active-btn" id="editActiveBtn">Load into Builder</button>
           </div>
           <div class="active-colors" id="activeColors"></div>
@@ -450,6 +450,18 @@ class TruLightSceneBuilder extends HTMLElement {
     activeScene.style.display = 'block';
     container.innerHTML = '';
 
+    // Show scene name from input_select if available
+    const nameEl = this.shadowRoot.getElementById('activeSceneName');
+    if (this._hass) {
+      const catState = this._hass.states['input_select.trulight_category'];
+      const sceneState = this._hass.states['input_select.trulight_scene'];
+      if (catState && sceneState && sceneState.state !== 'Select a category first') {
+        nameEl.textContent = `${catState.state} — ${sceneState.state}`;
+      } else {
+        nameEl.textContent = 'Custom';
+      }
+    }
+
     // Show the palette colors
     const colorCount = parsed.colorCount || parsed.colors.length;
     for (let i = 0; i < Math.min(colorCount, 16); i++) {
@@ -459,6 +471,10 @@ class TruLightSceneBuilder extends HTMLElement {
       if (c[0] === 0 && c[1] === 0 && c[2] === 0) {
         dot.style.background = '#1a1a1a';
         dot.style.border = '2px solid #555';
+      } else if (c[0] > 240 && c[1] > 240 && c[2] > 240) {
+        // Near-white colors need a visible border
+        dot.style.background = `rgb(${c[0]},${c[1]},${c[2]})`;
+        dot.style.border = '2px solid #ccc';
       } else {
         dot.style.background = `rgb(${c[0]},${c[1]},${c[2]})`;
       }
@@ -696,11 +712,22 @@ class TruLightSceneBuilder extends HTMLElement {
       if (this._colors[i] === null) {
         slot.classList.add('empty');
         slot.style.background = '#e0e0e0';
+        slot.style.borderColor = '#ccc';
       } else if (this._colors[i] === '#000000') {
         slot.classList.add('off');
         slot.style.background = '#1a1a1a';
+        slot.style.borderColor = '#555';
       } else {
         slot.style.background = this._colors[i];
+        // Add visible border for white/light colors
+        const r = parseInt(this._colors[i].slice(1,3), 16);
+        const g = parseInt(this._colors[i].slice(3,5), 16);
+        const b = parseInt(this._colors[i].slice(5,7), 16);
+        if (r > 200 && g > 200 && b > 200) {
+          slot.style.borderColor = '#bbb';
+        } else {
+          slot.style.borderColor = 'transparent';
+        }
       }
       if (i === this._activeSlot) {
         slot.classList.add('active');
