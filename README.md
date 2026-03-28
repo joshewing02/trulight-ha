@@ -71,25 +71,38 @@ Before flashing, you need to find your TruLight controller's BLE MAC address:
 #### Flash the ESP32
 
 **First time (USB):**
-1. Connect the ESP32 to your computer via USB
-2. In ESPHome dashboard, click Install → Plug into this computer
-3. Select the serial port and flash
+1. Connect the ESP32 to a computer via USB
+2. Option A: In ESPHome dashboard, click Install → Plug into this computer
+3. Option B: In ESPHome dashboard, click Install → Manual download → Modern format, then flash the `.bin` file at [web.esphome.io](https://web.esphome.io) from the computer with the USB connection
 
 **Subsequent updates (wireless):**
 1. In ESPHome dashboard, click Install → Wirelessly (OTA)
 
-### Step 3: Configure the Integration
+### Step 3: Add the ESP32 to Home Assistant
+
+After flashing, the ESP32 connects to WiFi and should appear as a discovered ESPHome device in **Settings → Devices & Services**. If it doesn't auto-discover:
+
+1. Go to Settings → Devices & Services → ESPHome
+2. Click **Add Device**
+3. Enter the ESP32's IP address (check your router's DHCP leases or ESPHome logs)
+4. Enter the API encryption key from your `secrets.yaml`
+
+The ESP32's entities (command text, power buttons, power state sensor) must be visible in HA before configuring the TruLight integration.
+
+### Step 4: Configure the Integration
 
 1. In HA, go to Settings → Devices & Services → Add Integration
 2. Search for **TruLight BLE**
 3. Enter:
-   - **Name**: e.g., "Backyard" or "Front Yard"
+   - **Name**: e.g., "TruLight Backyard" or "TruLight Front Yard"
    - **Command entity**: The ESPHome text entity (e.g., `text.trulight_backyard_command`)
    - **Power On button**: The ESPHome power on button (e.g., `button.trulight_backyard_power_on`)
    - **Power Off button**: The ESPHome power off button (e.g., `button.trulight_backyard_power_off`)
-4. Done! A light entity will appear in HA.
+   - **Power State sensor** (optional): The ESPHome binary sensor (e.g., `binary_sensor.trulight_backyard_power_state`)
+4. Optionally name your zones (e.g., "Top Roofline", "Bottom Roofline") — each zone gets its own light entity
+5. Done! A light entity will appear in HA.
 
-### Step 4: Place the ESP32
+### Step 5: Place the ESP32
 
 Mount the ESP32 within **~30 feet** of your TruLight controller. It only needs USB power — no wiring to the controller.
 
@@ -109,12 +122,14 @@ The TruLight appears as a standard HA light entity:
 
 ### Built-In Scene Browser
 
-The integration creates two select entities for browsing scenes directly in the HA UI:
+The integration creates select entities and a button for browsing and applying scenes:
 
+- **Zone Select** (`select.trulight_backyard_zone`) — Pick which zone to target (All Zones, or a specific zone)
 - **Category Select** (`select.trulight_backyard_category`) — Pick from 69 categories
-- **Scene Select** (`select.trulight_backyard_scene`) — Pick a scene within the category, auto-applied to the controller
+- **Scene Select** (`select.trulight_backyard_scene`) — Pick a scene within the category
+- **Apply Scene** (`button.trulight_backyard_apply_scene`) — Press to send the selected scene to the controller
 
-No automations, input_selects, or scripts needed — it works out of the box.
+Selecting a scene stages it without sending — press Apply Scene to activate. No automations, input_selects, or scripts needed.
 
 ### Scene Builder Card
 
@@ -212,10 +227,26 @@ cards:
     entity: light.trulight_backyard
     icon: mdi:led-strip-variant
     color: amber
-  - type: entities
-    entities:
-      - entity: select.trulight_backyard_category
-      - entity: select.trulight_backyard_scene
+    features:
+      - type: light-brightness
+  - type: tile
+    entity: select.trulight_backyard_zone
+    name: Apply To
+  - type: tile
+    entity: select.trulight_backyard_category
+    name: Category
+  - type: tile
+    entity: select.trulight_backyard_scene
+    name: Scene
+  - type: button
+    entity: button.trulight_backyard_apply_scene
+    name: APPLY SCENE
+    icon: mdi:play-circle
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.trulight_backyard_apply_scene
   - type: custom:trulight-scene-builder
     entity: light.trulight_backyard
 ```

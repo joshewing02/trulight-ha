@@ -13,9 +13,14 @@
 # and enable the BLE scan logger (uncomment the on_ble_advertise section below).
 # Look for "TruLight Pro" in the ESPHome logs.
 #
-# WiFi credentials should be in your ESPHome secrets.yaml:
+# Required secrets.yaml entries:
+#   api_key: "your-base64-api-encryption-key"
+#   ota_password: "your-ota-password"
 #   wifi_ssid: "YourSSID"
 #   wifi_password: "YourPassword"
+#
+# Generate an API key with: openssl rand -base64 32
+# Generate an OTA password with: openssl rand -hex 16
 ##############################################################################
 
 substitutions:
@@ -33,7 +38,6 @@ esp32:
   #   Waveshare ESP32-S3 Mini:  esp32-s3-devkitc-1
   #   ESP32-S3 DevKitC:         esp32-s3-devkitc-1
   #   ESP32 DevKit v1 (no S3):  esp32dev  (BLE 4.2, shorter range)
-  #   Voice PE (ESP32-S3-BOX):  esp32-s3-devkitc-1
   framework:
     type: arduino
 
@@ -81,6 +85,12 @@ ble_client:
     on_disconnect:
       then:
         - lambda: 'ESP_LOGW("trulight", "BLE disconnected from TruLight controller");'
+
+globals:
+  - id: trulight_power_state
+    type: bool
+    restore_value: no
+    initial_value: "false"
 
 # Command text entity - HA sends hex strings here, ESP32 adds CRC and writes to BLE
 text:
@@ -169,3 +179,41 @@ sensor:
 
   - platform: uptime
     name: "${friendly_name} Uptime"
+
+  # BLE notify listener - receives power state responses from controller
+  - platform: ble_client
+    type: characteristic
+    ble_client_id: trulight_client
+    service_uuid: 0000ae00-0000-1000-8000-00805f9b34fb
+    characteristic_uuid: 0000ae02-0000-1000-8000-00805f9b34fb
+    notify: true
+    id: trulight_notify
+    lambda: |-
+      if (x.size() > 2 && x[0] == 0xBB) {
+        uint8_t opcode = x[1];
+        if ((opcode == 0xB6 || opcode == 0xFC) && x.size() > 5) {
+          bool power = (x[2] != 0);
+          id(trulight_power_state) = power;
+          ESP_LOGI("trulight", "Power state: %s", power ? "ON" : "OFF");
+        }
+      }
+      return 0;
+
+# Power state binary sensor - tracks real on/off state from BLE polling
+binary_sensor:
+  - platform: template
+    name: "${friendly_name} Power State"
+    id: trulight_power_sensor
+    device_class: power
+    lambda: |-
+      return id(trulight_power_state);
+
+# Poll controller for power state every 30 seconds (B6 = queryDeviceInfo)
+interval:
+  - interval: 30s
+    then:
+      - ble_client.ble_write:
+          id: trulight_client
+          service_uuid: 0000ae00-0000-1000-8000-00805f9b34fb
+          characteristic_uuid: 0000ae01-0000-1000-8000-00805f9b34fb
+          value: [0xAA, 0xB6, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE0]
