@@ -48,36 +48,31 @@ class TruLightSceneBuilder extends HTMLElement {
       if (match) this._commandEntityId = match;
     }
 
-    // Check light entity state — hide active scene when off, restore when on
-    if (hass && this._entityId) {
-      const lightState = hass.states[this._entityId];
-      const isOff = lightState && lightState.state === 'off';
-      const activeScene = this.shadowRoot?.getElementById('activeScene');
+    // Determine if light is off — check both entity state and last command
+    const lightState = hass?.states?.[this._entityId];
+    const cmdState = hass?.states?.[this._commandEntityId];
+    const cmdHex = cmdState?.state || '';
+    const isPowerOff = cmdHex.toUpperCase() === 'AAF10000000000000000';
+    const isOff = (lightState && lightState.state === 'off') || isPowerOff;
+    const activeScene = this.shadowRoot?.getElementById('activeScene');
 
-      if (isOff) {
-        if (activeScene) activeScene.style.display = 'none';
-      } else if (this._lastSceneHex && activeScene && activeScene.style.display === 'none') {
-        this._updateActiveScene();
-      }
+    if (isOff) {
+      if (activeScene) activeScene.style.display = 'none';
+    } else if (this._lastSceneHex && activeScene && activeScene.style.display === 'none') {
+      this._updateActiveScene();
     }
 
     // Track the command entity to detect scene changes
-    if (hass && this._commandEntityId) {
-      const state = hass.states[this._commandEntityId];
-      if (state && state.state !== 'unknown' && state.state !== 'unavailable') {
-        const newHex = state.state;
-        // Only update if it's a new F7 scene command
-        if (newHex.startsWith('AAF7') && newHex !== this._lastRawHex) {
-          this._lastRawHex = newHex;
-          this._lastSceneHex = newHex;  // Remember last scene
-          this._updateActiveScene();
-        } else if (!newHex.startsWith('AAF7') && newHex !== this._lastRawHex) {
-          this._lastRawHex = newHex;
-          // Power or other command — keep showing last scene
-          if (this._lastSceneHex) {
-            this._updateActiveScene();
-          }
+    if (hass && this._commandEntityId && cmdState
+        && cmdState.state !== 'unknown' && cmdState.state !== 'unavailable') {
+      const newHex = cmdState.state;
+      if (newHex !== this._lastRawHex) {
+        this._lastRawHex = newHex;
+        if (newHex.startsWith('AAF7')) {
+          this._lastSceneHex = newHex;
+          if (!isOff) this._updateActiveScene();
         }
+        // Non-scene commands (power, brightness, etc.) — don't update display
       }
     }
   }
